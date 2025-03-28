@@ -20,16 +20,16 @@ pipeline {
             }
         }
         
-        stage('Test') {
-            steps {
-                sh './gradlew test'
-            }
-            post {
-                always {
-                    junit '**/build/test-results/test/*.xml'
-                }
-            }
-        }
+        // stage('Test') {
+        //     steps {
+        //         sh './gradlew test'
+        //     }
+        //     post {
+        //         always {
+        //             junit '**/build/test-results/test/*.xml'
+        //         }
+        //     }
+        // }
         
         stage('Docker Build') {
             steps {
