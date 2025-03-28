@@ -51,10 +51,9 @@ pipeline {
         
         stage('Deploy') {
             steps {
-                // SSH Agent 대신 직접 SSH 사용
                 sh """
-                    ssh -i /path/to/private_key -o StrictHostKeyChecking=no ec2-user@your-target-server '
-                    cd /path/to/kitcha &&
+                    ssh -i /var/lib/jenkins/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@13.250.167.60'
+                    cd kitcha/auth &&
                     docker-compose pull ${SERVICE_NAME} &&
                     docker-compose up -d --no-deps ${SERVICE_NAME}
                     '
