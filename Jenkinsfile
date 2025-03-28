@@ -39,24 +39,26 @@ pipeline {
         
         stage('Docker Push') {
             steps {
-                sh "echo ${DOCKER_HUB_CREDS_PSW} | docker login -u ${DOCKER_HUB_CREDS_USR} --password-stdin"
-                sh "docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}"
-                sh "docker push ${DOCKER_IMAGE}:latest"
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', 
+                                                 usernameVariable: 'DOCKER_USERNAME',
+                                                 passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
+                    sh "docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}"
+                    sh "docker push ${DOCKER_IMAGE}:latest"
+                }
             }
         }
         
         stage('Deploy') {
             steps {
-                // 배포 스크립트 실행
-                sshagent(['ec2-deploy-key']) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ec2-user@your-target-server '
-                        cd /path/to/kitcha &&
-                        docker-compose pull ${SERVICE_NAME} &&
-                        docker-compose up -d --no-deps ${SERVICE_NAME}
-                        '
-                    """
-                }
+                // SSH Agent 대신 직접 SSH 사용
+                sh """
+                    ssh -i /path/to/private_key -o StrictHostKeyChecking=no ec2-user@your-target-server '
+                    cd /path/to/kitcha &&
+                    docker-compose pull ${SERVICE_NAME} &&
+                    docker-compose up -d --no-deps ${SERVICE_NAME}
+                    '
+                """
             }
         }
     }
