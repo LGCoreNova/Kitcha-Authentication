@@ -4,7 +4,7 @@ pipeline {
     environment {
         SERVICE_NAME = "auth"
         DOCKER_HUB_CREDS = credentials('docker-hub-credentials')
-        DOCKER_IMAGE = "wdd1016/auth"
+        DOCKER_IMAGE = "r12dh16/auth"  
     }
     
     stages {
