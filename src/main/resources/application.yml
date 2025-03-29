@@ -3,3 +3,21 @@ spring:
     name: authentication
   config:
     import: "optional:configserver:http://config-server:8071"
+  # RabbitMQ 설정 추가
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    username: guest
+    password: guest
+  cloud:
+    bus:
+      enabled: true
+      refresh:
+        enabled: true
+
+# Actuator 설정 추가
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,busrefresh
