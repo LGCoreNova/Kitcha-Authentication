@@ -5,13 +5,11 @@ pipeline {
       gradle "gradle8.12.1"
   }
   
-  properties([
-      parameters([
-          booleanParam(name: 'DOCKER_BUILD', defaultValue: true, description: 'Docker 이미지 빌드 실행 여부'),
-          string(name: 'DOCKER_IMAGE_TAG', defaultValue: '', description: 'Docker 이미지 태그 (비워두면 빌드 번호 사용)'),
-          booleanParam(name: 'TEST_MODE', defaultValue: true, description: '테스트 모드 (ECR 푸시하지 않음)')
-      ])
-  ])
+  parameters {
+      booleanParam(name: 'DOCKER_BUILD', defaultValue: true, description: 'Docker 이미지 빌드 실행 여부')
+      string(name: 'DOCKER_IMAGE_TAG', defaultValue: '', description: 'Docker 이미지 태그 (비워두면 빌드 번호 사용)')
+      booleanParam(name: 'TEST_MODE', defaultValue: true, description: '테스트 모드 (ECR 푸시하지 않음)')
+  }
   
   stages {
     stage('Gradle Install') {
