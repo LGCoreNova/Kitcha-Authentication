@@ -1,5 +1,5 @@
 pipeline {
-  agent none
+  agent any
   
   tools {
       gradle "gradle8.12.1"
