@@ -1,78 +1,124 @@
 pipeline {
-    agent any
-    
-    environment {
-        SERVICE_NAME = "auth"
-        DOCKER_HUB_CREDS = credentials('docker-hub-credentials')
-        DOCKER_IMAGE = "r12dh16/auth"  
+  agent none
+  
+  tools {
+      gradle "gradle8.12.1"
+  }
+  
+  properties([
+      parameters([
+          booleanParam(name: 'DOCKER_BUILD', defaultValue: true, description: 'Docker 이미지 빌드 실행 여부'),
+          string(name: 'DOCKER_IMAGE_TAG', defaultValue: '', description: 'Docker 이미지 태그 (비워두면 빌드 번호 사용)'),
+          booleanParam(name: 'TEST_MODE', defaultValue: true, description: '테스트 모드 (ECR 푸시하지 않음)')
+      ])
+  ])
+  
+  stages {
+    stage('Gradle Install') {
+      agent any
+      steps {
+        checkout scm
+        sh 'gradle clean build -x test'
+      }
     }
     
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
+    stage('Docker Image Build') {
+      agent any
+      when {
+        expression { params.DOCKER_BUILD == true }
+      }
+      steps {
+          script {
+            def imageTag
+            
+            if (params.DOCKER_IMAGE_TAG != "") {
+                imageTag = params.DOCKER_IMAGE_TAG
+            } else {
+                imageTag = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
             }
-        }
-        
-        stage('Build') {
-            steps {
-                sh './gradlew clean build -x test'
+            
+            def ecrTagPrefix = "803691999553.dkr.ecr.us-west-1.amazonaws.com/kitcha/auth"
+
+            def deployTag = "latest"
+            if (env.BRANCH_NAME != "main") {
+                deployTag = env.BRANCH_NAME
             }
-        }
-        
-        // stage('Test') {
-        //     steps {
-        //         sh './gradlew test'
-        //     }
-        //     post {
-        //         always {
-        //             junit '**/build/test-results/test/*.xml'
-        //         }
-        //     }
-        // }
-        
-        stage('Docker Build') {
-            steps {
-                sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} -t ${DOCKER_IMAGE}:latest ."
-            }
-        }
-        
-        stage('Docker Push') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', 
-                                                 usernameVariable: 'DOCKER_USERNAME',
-                                                 passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
-                    sh "docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}"
-                    sh "docker push ${DOCKER_IMAGE}:latest"
-                }
-            }
-        }
-        
-        stage('Deploy') {
-            steps {
-                sh """
-                    ssh -i /var/lib/jenkins/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@13.250.167.60'
-                    cd kitcha/auth &&
-                    docker-compose pull ${SERVICE_NAME} &&
-                    docker-compose up -d --no-deps ${SERVICE_NAME}
-                    '
-                """
-            }
-        }
+
+            sshPublisher(publishers: [
+                sshPublisherDesc(
+                    configName: 'toy-docker-server',
+                    transfers: [sshTransfer(
+                        cleanRemote: false,
+                        excludes: '',
+                        execCommand: """
+                            cd kitcha/auth
+                            aws ecr get-login-password --region us-west-1 | docker login --username AWS --password-stdin 803691999553.dkr.ecr.us-west-1.amazonaws.com
+                            docker build --tag kitcha/auth:${imageTag} -f Dockerfile .
+                            docker tag kitcha/auth:${imageTag} ${ecrTagPrefix}:${imageTag}
+                            docker tag kitcha/auth:${imageTag} ${ecrTagPrefix}:${deployTag}
+                            
+                            # 테스트 모드가 아닌 경우에만 푸시 실행
+                            if [ "${params.TEST_MODE}" = "false" ]; then
+                                echo "ECR에 이미지 푸시 중..."
+                                docker push ${ecrTagPrefix}:${imageTag}
+                                docker push ${ecrTagPrefix}:${deployTag}
+                            else
+                                echo "테스트 모드: ECR 푸시 건너뜀"
+                            fi
+                        """,
+                        execTimeout: 600000,
+                        flatten: false,
+                        makeEmptyDirs: false,
+                        noDefaultExcludes: false,
+                        patternSeparator: '[, ]+',
+                        remoteDirectory: './kitcha/auth',
+                        remoteDirectorySDF: false,
+                        removePrefix: 'build/libs',
+                        sourceFiles: 'build/libs/*.jar'
+                    )],
+                    usePromotionTimestamp: false,
+                    useWorkspaceInPromotion: false,
+                    verbose: true
+                )
+            ])
+          }
+      }
     }
     
-    post {
-        always {
-            // 작업 공간 정리
-            cleanWs()
+    stage('Deploy to Development') {
+      agent any
+      when {
+        expression { 
+          return env.BRANCH_NAME.startsWith('feat-') || env.BRANCH_NAME == 'develop' 
         }
-        success {
-            // 슬랙 등 알림 전송 (선택사항)
-            echo "Build succeeded!"
-        }
-        failure {
-            echo "Build failed!"
-        }
+      }
+      steps {
+        echo "개발 환경에 배포 중: ${env.BRANCH_NAME} 브랜치"
+      }
     }
+    
+    stage('Deploy to Production') {
+      agent any
+      when {
+        expression { 
+          return env.BRANCH_NAME == 'main' 
+        }
+      }
+      steps {
+        echo "프로덕션 환경에 배포 중: main 브랜치"
+      }
+    }
+  }
+  
+  post {
+    success {
+      echo "빌드 및 배포 성공! 브랜치: ${env.BRANCH_NAME}"
+    }
+    failure {
+      echo "빌드 또는 배포 실패! 브랜치: ${env.BRANCH_NAME}"
+    }
+    always {
+      cleanWs()
+    }
+  }
 }
