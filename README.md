@@ -8,9 +8,7 @@
 
 ## 빌드 및 실행 방법(Jenkins + ECS + ECR 기반)
 Jenkins를 활용한 자동화 빌드 및 배포 파이프라인과, AWS ECS 기반의 컨테이너 실행 및 관리 체계를 구성하였습니다.
-
 빌드된 Docker 이미지는 latest 태그로 ECR에 푸시되며, ECS 서비스는 해당 태그를 기준으로 항상 최신 버전을 배포합니다.
-
 일반적인 Jenkinsfile 파이프라인 예시는 다음과 같습니다.
 
 ### 📦 Jenkinsfile 예시
