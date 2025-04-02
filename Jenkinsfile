@@ -12,7 +12,6 @@ pipeline {
   
   stages {
     stage('Gradle Install') {
-      agent any
       steps {
         checkout scm
         sh 'gradle clean build -x test'
@@ -20,7 +19,6 @@ pipeline {
     }
     
     stage('Docker Image Build') {
-      agent any
       when {
         expression { params.DOCKER_BUILD == true }
       }
@@ -77,7 +75,6 @@ pipeline {
     }
     
     stage('Deploy to Development') {
-      agent any
       when {
         expression { 
           return env.BRANCH_NAME.startsWith('feat-') || env.BRANCH_NAME == 'develop' 
@@ -89,7 +86,6 @@ pipeline {
     }
     
     stage('Deploy to Production') {
-      agent any
       when {
         expression { 
           return env.BRANCH_NAME == 'main' 
