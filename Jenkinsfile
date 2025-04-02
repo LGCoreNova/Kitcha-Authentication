@@ -97,36 +97,59 @@ pipeline {
       }
       steps {
         echo "프로덕션 환경에 배포 중: main 브랜치"
-        sshPublisher(publishers: [
-          sshPublisherDesc(
-            configName: 'toy-docker-server',
-            transfers: [sshTransfer(
-              cleanRemote: false,
-              excludes: '',
-              execCommand: """
-                cd kitcha/auth
-                # ECS 배포 스크립트 실행
-                aws ecs describe-task-definition --task-definition kitcha-auth --output json > task-auth-definition.json
-                jq '{family: .taskDefinition.family, networkMode: .taskDefinition.networkMode, containerDefinitions: .taskDefinition.containerDefinitions, requiresCompatibilities: .taskDefinition.requiresCompatibilities, cpu: .taskDefinition.cpu, memory: .taskDefinition.memory, executionRoleArn: .taskDefinition.executionRoleArn, volumes: .taskDefinition.volumes, placementConstraints: .taskDefinition.placementConstraints}' task-auth-definition.json > clean-task-auth-def.json
-                aws ecs register-task-definition --cli-input-json file://clean-task-auth-def.json
-                aws ecs update-service --cluster LGCNS-Cluster-2 --service kitcha-auth-service --task-definition kitcha-auth --force-new-deployment
-                echo "ECS 서비스 업데이트 완료: kitcha-auth-service (강제 배포 적용)"
-              """,
-              execTimeout: 300000,
-              flatten: false,
-              makeEmptyDirs: false,
-              noDefaultExcludes: false,
-              patternSeparator: '[, ]+',
-              remoteDirectory: '',
-              remoteDirectorySDF: false,
-              removePrefix: '',
-              sourceFiles: ''
-            )],
-            usePromotionTimestamp: false,
-            useWorkspaceInPromotion: false,
-            verbose: true
-          )
-        ])
+        script {
+          // 빌드 단계에서 사용한 이미지 태그를 배포에도 사용하기 위해 변수 설정
+          def imageTag = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+          def deployTag = "latest"
+          def ecrTagPrefix = "803691999553.dkr.ecr.us-west-1.amazonaws.com/kitcha/auth"
+          
+          sshPublisher(publishers: [
+            sshPublisherDesc(
+              configName: 'toy-docker-server',
+              transfers: [sshTransfer(
+                cleanRemote: false,
+                excludes: '',
+                execCommand: """
+                  cd kitcha/auth
+                  
+                  # 사용할 이미지 확인
+                  echo "배포 이미지: ${ecrTagPrefix}:${deployTag}"
+                  
+                  # ECS 배포 스크립트 실행
+                  aws ecs describe-task-definition --task-definition kitcha-auth --output json > task-auth-definition.json
+                  
+                  # 컨테이너 이미지를 새 이미지로 명시적 업데이트
+                  jq --arg IMG "${ecrTagPrefix}:${deployTag}" '.taskDefinition.containerDefinitions[0].image = \$IMG' task-auth-definition.json > task-auth-updated.json
+                  
+                  # 필수 필드만 추출
+                  jq '{family: .taskDefinition.family, networkMode: .taskDefinition.networkMode, containerDefinitions: .taskDefinition.containerDefinitions, requiresCompatibilities: .taskDefinition.requiresCompatibilities, cpu: .taskDefinition.cpu, memory: .taskDefinition.memory, executionRoleArn: .taskDefinition.executionRoleArn, volumes: .taskDefinition.volumes, placementConstraints: .taskDefinition.placementConstraints}' task-auth-updated.json > clean-task-auth-def.json
+                  
+                  # 새 작업 정의 등록
+                  TASK_DEF_ARN=\$(aws ecs register-task-definition --cli-input-json file://clean-task-auth-def.json --query 'taskDefinition.taskDefinitionArn' --output text)
+                  
+                  echo "생성된 작업 정의 ARN: \$TASK_DEF_ARN"
+                  
+                  # 새 작업 정의로 서비스 업데이트 - 서비스 이름 수정
+                  aws ecs update-service --cluster LGCNS-Cluster-2 --service kitcha-auth-new-service --task-definition \$TASK_DEF_ARN --force-new-deployment
+                  
+                  echo "ECS 서비스 업데이트 완료: kitcha-auth-new-service (새 이미지, 강제 배포 적용)"
+                """,
+                execTimeout: 300000,
+                flatten: false,
+                makeEmptyDirs: false,
+                noDefaultExcludes: false,
+                patternSeparator: '[, ]+',
+                remoteDirectory: '',
+                remoteDirectorySDF: false,
+                removePrefix: '',
+                sourceFiles: ''
+              )],
+              usePromotionTimestamp: false,
+              useWorkspaceInPromotion: false,
+              verbose: true
+            )
+          ])
+        }
       }
     }
   }
