@@ -54,9 +54,6 @@ pipeline {
                             docker tag kitcha/auth:${imageTag} ${ecrTagPrefix}:${imageTag}
                             docker tag kitcha/auth:${imageTag} ${ecrTagPrefix}:${deployTag}
                             
-                            # 항상 ECR에 이미지 푸시
-                            echo "ECR에 이미지 푸시 중..."
-                            docker push ${ecrTagPrefix}:${imageTag}
                             docker push ${ecrTagPrefix}:${deployTag}
                         """,
                         execTimeout: 600000,
