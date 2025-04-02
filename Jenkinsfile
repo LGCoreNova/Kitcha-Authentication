@@ -54,6 +54,7 @@ pipeline {
                             docker tag kitcha/auth:${imageTag} ${ecrTagPrefix}:${imageTag}
                             docker tag kitcha/auth:${imageTag} ${ecrTagPrefix}:${deployTag}
                             
+                            
                             docker push ${ecrTagPrefix}:${deployTag}
                         """,
                         execTimeout: 600000,
