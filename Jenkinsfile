@@ -109,18 +109,18 @@ pipeline {
                 aws ecs describe-task-definition --task-definition kitcha-auth --output json > task-auth-definition.json
                 
                 # 작업 정의에서 이미지 태그 업데이트
-                jq --arg IMG "${ecrTagPrefix}:${deployTag}" '.taskDefinition.containerDefinitions[0].image = $IMG' task-auth-definition.json > task-auth-updated.json
+                jq --arg IMG "${ecrTagPrefix}:${deployTag}" '.taskDefinition.containerDefinitions[0].image = \$IMG' task-auth-definition.json > task-auth-updated.json
                 
                 # 필수 필드만 추출
                 jq '{family: .taskDefinition.family, networkMode: .taskDefinition.networkMode, containerDefinitions: .taskDefinition.containerDefinitions, requiresCompatibilities: .taskDefinition.requiresCompatibilities, cpu: .taskDefinition.cpu, memory: .taskDefinition.memory, executionRoleArn: .taskDefinition.executionRoleArn, volumes: .taskDefinition.volumes, placementConstraints: .taskDefinition.placementConstraints}' task-auth-updated.json > clean-task-auth-def.json
                 
                 # 새 작업 정의 등록 및 ARN 저장
-                TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://clean-task-auth-def.json --query 'taskDefinition.taskDefinitionArn' --output text)
+                TASK_DEF_ARN=\$(aws ecs register-task-definition --cli-input-json file://clean-task-auth-def.json --query 'taskDefinition.taskDefinitionArn' --output text)
                 
                 # 새 ARN으로 서비스 업데이트 및 강제 배포
-                aws ecs update-service --cluster LGCNS-Cluster-2 --service kitcha-auth-service --task-definition $TASK_DEF_ARN --force-new-deployment
+                aws ecs update-service --cluster LGCNS-Cluster-2 --service kitcha-auth-service --task-definition \$TASK_DEF_ARN --force-new-deployment
                 
-                echo "ECS 서비스 업데이트 완료: kitcha-auth-service (Task Definition: $TASK_DEF_ARN)"
+                echo "ECS 서비스 업데이트 완료: kitcha-auth-service (Task Definition: \$TASK_DEF_ARN)"
               """,
               execTimeout: 300000,
               flatten: false,
